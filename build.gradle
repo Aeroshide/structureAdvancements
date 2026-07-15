@@ -1,0 +1,209 @@
+plugins {
+    id 'base'
+}
+
+import groovy.json.JsonSlurper
+import java.util.zip.ZipFile
+
+// Define the Zip tasks for each submodule
+def submoduleTargets = [
+    [name: 'datagen-1.19', zipName: 'structureAdvancements-1.19-1.19.4.zip', format: 15, range: '1.19 - 1.19.4'],
+    [name: 'datagen-1.20', zipName: 'structureAdvancements-1.20-1.20.6.zip', format: 15, range: '1.20 - 1.20.6'],
+    [name: 'datagen-1.21', zipName: 'structureAdvancements-1.21-1.21.4.zip', format: 48, range: '1.21 - 1.21.4'],
+    [name: 'datagen-26.2', zipName: 'structureAdvancements-26.1-26.2.zip', format: 101, range: '26.1 - 26.2']
+]
+
+submoduleTargets.each { target ->
+    tasks.register("zip-${target.name}", Zip) {
+        group = 'datapack'
+        description = "Packages the generated datapack for ${target.name}"
+        
+        dependsOn {
+            def sub = findProject(":${target.name}")
+            if (sub != null && sub.tasks.findByName('runDatagen') != null) {
+                return [":${target.name}:runDatagen"]
+            }
+            return []
+        }
+
+        archiveFileName = target.zipName
+        destinationDirectory = layout.projectDirectory.dir('datapackBuild')
+
+        // Include datagen output files
+        def tempGenDir = file("${buildDir}/tmp/gen-${target.name}")
+        def packFile = file("${buildDir}/tmp/pack-${target.name}.mcmeta")
+
+        doFirst {
+            def srcDir = project(":${target.name}").file('src/main/generated/data')
+            delete tempGenDir
+            if (srcDir.exists()) {
+                copy {
+                    from srcDir
+                    into tempGenDir
+                }
+                def oldDir = new File(tempGenDir, "structureadvancements/advancements")
+                def newDir = new File(tempGenDir, "structureadvancements/advancement")
+                if (oldDir.exists()) {
+                    oldDir.renameTo(newDir)
+                }
+            }
+
+            packFile.parentFile.mkdirs()
+            packFile.text = """{
+  "pack": {
+    "pack_format": ${target.format},
+    "description": "Structure Advancements for Minecraft ${target.range}"
+  }
+}"""
+        }
+
+        from(tempGenDir) {
+            into 'data'
+        }
+
+        from(packFile) {
+            rename { 'pack.mcmeta' }
+        }
+        
+        def packPng = project(":datagen-common").file('src/main/resources/pack.png')
+        if (packPng.exists()) {
+            from(packPng)
+        }
+    }
+}
+
+tasks.register('generateAllDatapacks') {
+    group = 'datapack'
+    description = 'Generates and packages datapacks for all Minecraft versions'
+    dependsOn submoduleTargets.collect { "zip-${it.name}" }
+}
+
+tasks.register('verifyDatapacks') {
+    group = 'verification'
+    description = 'Validates all generated datapack zip files'
+    dependsOn 'generateAllDatapacks'
+
+    doLast {
+        def datapackDir = file('datapackBuild')
+        if (!datapackDir.exists()) {
+            logger.warn("datapackBuild directory does not exist. No zip files to verify.")
+            return
+        }
+
+        def targets = [
+            [
+                filename: 'structureAdvancements-1.19-1.19.4.zip',
+                expectedCount: 23,
+                expectedFormat: 15,
+                structures: [
+                    'mineshaft', 'village', 'stronghold', 'fortress', 'desert_pyramid',
+                    'jungle_pyramid', 'igloo', 'ocean_ruin', 'shipwreck', 'monument',
+                    'mansion', 'buried_treasure', 'pillager_outpost', 'end_city',
+                    'swamp_hut', 'ruined_portal', 'bastion_remnant', 'nether_fossil',
+                    'ancient_city'
+                ]
+            ],
+            [
+                filename: 'structureAdvancements-1.20-1.20.6.zip',
+                expectedCount: 24,
+                expectedFormat: 15,
+                structures: [
+                    'mineshaft', 'village', 'stronghold', 'fortress', 'desert_pyramid',
+                    'jungle_pyramid', 'igloo', 'ocean_ruin', 'shipwreck', 'monument',
+                    'mansion', 'buried_treasure', 'pillager_outpost', 'end_city',
+                    'swamp_hut', 'ruined_portal', 'bastion_remnant', 'nether_fossil',
+                    'ancient_city', 'trail_ruins'
+                ]
+            ],
+            [
+                filename: 'structureAdvancements-1.21-1.21.4.zip',
+                expectedCount: 25,
+                expectedFormat: 48,
+                structures: [
+                    'mineshaft', 'village', 'stronghold', 'fortress', 'desert_pyramid',
+                    'jungle_pyramid', 'igloo', 'ocean_ruin', 'shipwreck', 'monument',
+                    'mansion', 'buried_treasure', 'pillager_outpost', 'end_city',
+                    'swamp_hut', 'ruined_portal', 'bastion_remnant', 'nether_fossil',
+                    'ancient_city', 'trail_ruins', 'trial_chambers'
+                ]
+            ],
+            [
+                filename: 'structureAdvancements-26.1-26.2.zip',
+                expectedCount: 25,
+                expectedFormat: 101,
+                structures: [
+                    'mineshaft', 'village', 'stronghold', 'fortress', 'desert_pyramid',
+                    'jungle_pyramid', 'igloo', 'ocean_ruin', 'shipwreck', 'monument',
+                    'mansion', 'buried_treasure', 'pillager_outpost', 'end_city',
+                    'swamp_hut', 'ruined_portal', 'bastion_remnant', 'nether_fossil',
+                    'ancient_city', 'trail_ruins', 'trial_chambers'
+                ]
+            ]
+        ]
+
+        def slurper = new JsonSlurper()
+
+        targets.each { target ->
+            def zipFile = new File(datapackDir, target.filename)
+            if (!zipFile.exists()) {
+                logger.warn("Skipping verification for ${target.filename} (file does not exist)")
+                return
+            }
+
+            logger.lifecycle("Verifying ${target.filename}...")
+
+            ZipFile zip = new ZipFile(zipFile)
+            try {
+                // 1. Verify pack.mcmeta presence and format
+                def packEntry = zip.getEntry("pack.mcmeta")
+                if (packEntry == null) {
+                    throw new GradleException("${target.filename} is missing pack.mcmeta")
+                }
+
+                def packContent = slurper.parseText(zip.getInputStream(packEntry).text)
+                def format = packContent?.pack?.pack_format
+                if (format != target.expectedFormat) {
+                    throw new GradleException("${target.filename} pack_format is ${format}, expected ${target.expectedFormat}")
+                }
+
+                // 2. Count advancements and parse JSON
+                def advancementCount = 0
+                def foundStructures = [] as Set
+
+                zip.entries().each { entry ->
+                    if (entry.name.startsWith("data/structureadvancements/advancement/structures/") && entry.name.endsWith(".json")) {
+                        advancementCount++
+
+                        // Parse to check JSON validity
+                        def jsonText = zip.getInputStream(entry).text
+                        def json = slurper.parseText(jsonText)
+
+                        // Extract file name
+                        def name = entry.name.substring(entry.name.lastIndexOf('/') + 1, entry.name.lastIndexOf('.'))
+                        if (name != 'root' && name != 'overworld' && name != 'nether' && name != 'the_end') {
+                            foundStructures.add(name)
+                        }
+                    }
+                }
+
+                if (advancementCount != target.expectedCount) {
+                    throw new GradleException("${target.filename} contains ${advancementCount} advancement files, expected ${target.expectedCount}")
+                }
+
+                // 3. Verify all expected structures are present
+                target.structures.each { struct ->
+                    if (!foundStructures.contains(struct)) {
+                        throw new GradleException("${target.filename} is missing advancement for structure: ${struct}")
+                    }
+                }
+
+                logger.lifecycle("Successfully verified ${target.filename}!")
+            } finally {
+                zip.close()
+            }
+        }
+    }
+}
+
+// Bind verification to generateAllDatapacks
+generateAllDatapacks.finalizedBy verifyDatapacks
