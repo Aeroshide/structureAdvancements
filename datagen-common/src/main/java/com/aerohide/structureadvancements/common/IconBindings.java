@@ -18,7 +18,8 @@ public class IconBindings {
             case "desert_pyramid" -> "minecraft:tnt";
             case "jungle_pyramid" -> "minecraft:dispenser";
             case "igloo" -> "minecraft:snow_block";
-            case "ocean_ruin" -> isNewFormat ? "minecraft:mossy_stone_bricks" : "minecraft:suspicious_gravel";
+            case "ocean_ruin" -> (version == MCVersion.V1_14 || version == MCVersion.V1_16 || version == MCVersion.V1_18_2) ? "minecraft:prismarine" :
+                    isNewFormat ? "minecraft:mossy_stone_bricks" : "minecraft:suspicious_gravel";
             case "shipwreck" -> "minecraft:oak_boat";
             case "monument" -> "minecraft:sea_lantern";
             case "mansion" -> "minecraft:totem_of_undying";

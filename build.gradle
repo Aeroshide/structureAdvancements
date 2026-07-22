@@ -7,16 +7,20 @@ import java.util.zip.ZipFile
 
 // Define the Zip tasks for each submodule
 def submoduleTargets = [
-    [name: 'datagen-1.19', zipName: 'structureAdvancements-1.19-1.19.4.zip', format: 15, range: '1.19 - 1.19.4'],
-    [name: 'datagen-1.20', zipName: 'structureAdvancements-1.20-1.20.6.zip', format: 15, range: '1.20 - 1.20.6'],
-    [name: 'datagen-1.21', zipName: 'structureAdvancements-1.21-1.21.4.zip', format: 48, range: '1.21 - 1.21.4'],
-    [name: 'datagen-26.2', zipName: 'structureAdvancements-26.1-26.2.zip', format: 101, range: '26.1 - 26.2']
+    [name: 'datagen-LEGACY', taskSuffix: '1.14', zipName: 'structureAdvancements-1.14-1.15.2.zip', format: 4, maxFormat: 5, range: '1.14 - 1.15.2'],
+    [name: 'datagen-LEGACY', taskSuffix: '1.16', zipName: 'structureAdvancements-1.16-1.18.1.zip', format: 6, maxFormat: 8, range: '1.16 - 1.18.1'],
+    [name: 'datagen-1.18.2', zipName: 'structureAdvancements-1.18.2.zip', format: 9, range: '1.18.2'],
+    [name: 'datagen-1.19', zipName: 'structureAdvancements-1.19-1.19.4.zip', format: 10, maxFormat: 12, range: '1.19 - 1.19.4'],
+    [name: 'datagen-1.20', zipName: 'structureAdvancements-1.20-1.20.6.zip', format: 15, maxFormat: 41, range: '1.20 - 1.20.6'],
+    [name: 'datagen-1.21', zipName: 'structureAdvancements-1.21-1.21.4.zip', format: 48, maxFormat: 61, range: '1.21 - 1.21.4'],
+    [name: 'datagen-26.2', zipName: 'structureAdvancements-26.1-26.2.zip', format: 99, maxFormat: 101, range: '26.1 - 26.2']
 ]
 
 submoduleTargets.each { target ->
-    tasks.register("zip-${target.name}", Zip) {
+    def taskName = target.taskSuffix ? "zip-${target.taskSuffix}" : "zip-${target.name}"
+    tasks.register(taskName, Zip) {
         group = 'datapack'
-        description = "Packages the generated datapack for ${target.name}"
+        description = "Packages the generated datapack for ${target.zipName}"
         
         dependsOn {
             def sub = findProject(":${target.name}")
@@ -30,28 +34,38 @@ submoduleTargets.each { target ->
         destinationDirectory = layout.projectDirectory.dir('datapackBuild')
 
         // Include datagen output files
-        def tempGenDir = file("${buildDir}/tmp/gen-${target.name}")
-        def packFile = file("${buildDir}/tmp/pack-${target.name}.mcmeta")
+        def tempGenDir = file("${buildDir}/tmp/gen-${taskName}")
+        def packFile = file("${buildDir}/tmp/pack-${taskName}.mcmeta")
 
         doFirst {
             def srcDir = project(":${target.name}").file('src/main/generated/data')
             delete tempGenDir
             if (srcDir.exists()) {
-                copy {
-                    from srcDir
-                    into tempGenDir
-                }
-                def oldDir = new File(tempGenDir, "structureadvancements/advancements")
-                def newDir = new File(tempGenDir, "structureadvancements/advancement")
-                if (oldDir.exists()) {
-                    oldDir.renameTo(newDir)
+                def namespaceDirName = target.taskSuffix ? "structureadvancements_${target.taskSuffix.replace('.', '_')}" : "structureadvancements"
+                def srcNamespaceDir = new File(srcDir, namespaceDirName)
+                
+                if (srcNamespaceDir.exists()) {
+                    copy {
+                        from srcNamespaceDir
+                        into new File(tempGenDir, "structureadvancements")
+                        filter { line -> 
+                            line.replace('structureadvancements_1_16', 'structureadvancements')
+                                .replace('structureadvancements_1_14', 'structureadvancements') 
+                        }
+                    }
+                } else {
+                    copy {
+                        from srcDir
+                        into tempGenDir
+                    }
                 }
             }
 
             packFile.parentFile.mkdirs()
+            def supportedFormats = target.maxFormat ? ",\n    \"supported_formats\": [${target.format}, ${target.maxFormat}]" : ""
             packFile.text = """{
   "pack": {
-    "pack_format": ${target.format},
+    "pack_format": ${target.format}${supportedFormats},
     "description": "Structure Advancements for Minecraft ${target.range}"
   }
 }"""
@@ -75,7 +89,9 @@ submoduleTargets.each { target ->
 tasks.register('generateAllDatapacks') {
     group = 'datapack'
     description = 'Generates and packages datapacks for all Minecraft versions'
-    dependsOn submoduleTargets.collect { "zip-${it.name}" }
+    dependsOn submoduleTargets.collect { target ->
+        target.taskSuffix ? "zip-${target.taskSuffix}" : "zip-${target.name}"
+    }
 }
 
 tasks.register('verifyDatapacks') {
@@ -91,6 +107,39 @@ tasks.register('verifyDatapacks') {
         }
 
         def targets = [
+            [
+                filename: 'structureAdvancements-1.14-1.15.2.zip',
+                expectedCount: 19,
+                expectedFormat: 4,
+                structures: [
+                    'mineshaft', 'village', 'stronghold', 'fortress', 'desert_pyramid',
+                    'jungle_pyramid', 'igloo', 'ocean_ruin', 'shipwreck', 'monument',
+                    'mansion', 'buried_treasure', 'pillager_outpost', 'end_city',
+                    'swamp_hut'
+                ]
+            ],
+            [
+                filename: 'structureAdvancements-1.16-1.18.1.zip',
+                expectedCount: 22,
+                expectedFormat: 6,
+                structures: [
+                    'mineshaft', 'village', 'stronghold', 'fortress', 'desert_pyramid',
+                    'jungle_pyramid', 'igloo', 'ocean_ruin', 'shipwreck', 'monument',
+                    'mansion', 'buried_treasure', 'pillager_outpost', 'end_city',
+                    'swamp_hut', 'ruined_portal', 'bastion_remnant', 'nether_fossil'
+                ]
+            ],
+            [
+                filename: 'structureAdvancements-1.18.2.zip',
+                expectedCount: 22,
+                expectedFormat: 9,
+                structures: [
+                    'mineshaft', 'village', 'stronghold', 'fortress', 'desert_pyramid',
+                    'jungle_pyramid', 'igloo', 'ocean_ruin', 'shipwreck', 'monument',
+                    'mansion', 'buried_treasure', 'pillager_outpost', 'end_city',
+                    'swamp_hut', 'ruined_portal', 'bastion_remnant', 'nether_fossil'
+                ]
+            ],
             [
                 filename: 'structureAdvancements-1.19-1.19.4.zip',
                 expectedCount: 23,
@@ -150,7 +199,7 @@ tasks.register('verifyDatapacks') {
                 return
             }
 
-            logger.lifecycle("Verifying ${target.filename}...")
+            logger.lifecycle("Verifying ${target.filename} (Size: ${zipFile.length()} bytes)...")
 
             ZipFile zip = new ZipFile(zipFile)
             try {
@@ -171,7 +220,7 @@ tasks.register('verifyDatapacks') {
                 def foundStructures = [] as Set
 
                 zip.entries().each { entry ->
-                    if (entry.name.startsWith("data/structureadvancements/advancement/structures/") && entry.name.endsWith(".json")) {
+                    if ((entry.name.startsWith("data/structureadvancements/advancement/structures/") || entry.name.startsWith("data/structureadvancements/advancements/structures/")) && entry.name.endsWith(".json")) {
                         advancementCount++
 
                         // Parse to check JSON validity

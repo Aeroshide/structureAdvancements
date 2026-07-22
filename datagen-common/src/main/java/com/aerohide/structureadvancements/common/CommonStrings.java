@@ -5,19 +5,16 @@ public class CommonStrings {
     public static String getDimensionTitle(MCVersion version, String dimension) {
         return switch (dimension.toLowerCase()) {
             case "overworld" -> "Overworld";
-            case "nether" -> (version == MCVersion.V1_19 || version == MCVersion.V1_20) ? "Nether" : "The Nether";
-            case "the_end", "end" -> (version == MCVersion.V1_19 || version == MCVersion.V1_20) ? "End" : "The End";
+            case "nether" -> "The Nether";
+            case "the_end", "end" -> "The End";
             default -> throw new IllegalArgumentException("Unknown dimension: " + dimension);
         };
     }
     public static String getDimensionDescription(MCVersion version, String dimension) {
         return switch (dimension.toLowerCase()) {
-            case "overworld" ->
-                    (version == MCVersion.V1_19 || version == MCVersion.V1_20) ? "Find every structure in the Overworld" : "Overworld structures";
-            case "nether" ->
-                    (version == MCVersion.V1_19 || version == MCVersion.V1_20) ? "Find every structure in the Nether" : "Nether structures";
-            case "the_end", "end" ->
-                    (version == MCVersion.V1_19 || version == MCVersion.V1_20) ? "Find every structure in the End" : "End structures";
+            case "overworld" -> "Overworld structures";
+            case "nether" -> "Nether structures";
+            case "the_end", "end" -> "End structures";
             default -> throw new IllegalArgumentException("Unknown dimension: " + dimension);
         };
     }

@@ -1,6 +1,8 @@
 package com.aerohide.structureadvancements.common;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AdvancementHierarchy {
@@ -98,5 +100,25 @@ public class AdvancementHierarchy {
 
     public static CommonFrameType getFrameType(String advancementName) {
         return FRAME_TYPES.getOrDefault(advancementName, CommonFrameType.GOAL);
+    }
+
+    public static boolean existsInVersion(STRUCTURE structure, MCVersion version) {
+        return switch (structure) {
+            case TRIAL_CHAMBERS -> version == MCVersion.V1_21 || version == MCVersion.V26_2;
+            case TRAIL_RUINS -> version == MCVersion.V1_20 || version == MCVersion.V1_21 || version == MCVersion.V26_2;
+            case ANCIENT_CITY -> version != MCVersion.V1_14 && version != MCVersion.V1_16 && version != MCVersion.V1_18_2;
+            case RUINED_PORTAL, BASTION_REMNANT, NETHER_FOSSIL -> version != MCVersion.V1_14;
+            default -> true;
+        };
+    }
+
+    public static List<STRUCTURE> getStructuresForVersion(MCVersion version) {
+        List<STRUCTURE> list = new ArrayList<>();
+        for (STRUCTURE structure : STRUCTURE.values()) {
+            if (existsInVersion(structure, version)) {
+                list.add(structure);
+            }
+        }
+        return list;
     }
 }

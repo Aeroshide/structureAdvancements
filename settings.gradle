@@ -10,9 +10,10 @@ pluginManagement {
 
 rootProject.name = 'structureAdvancements'
 
+include 'datagen-LEGACY'
+include 'datagen-1.18.2'
 include 'datagen-1.19'
 include 'datagen-1.20'
 include 'datagen-1.21'
 include 'datagen-26.2'
 include 'datagen-common'
-
